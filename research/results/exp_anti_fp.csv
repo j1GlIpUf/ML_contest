@@ -1,5 +1,5 @@
 month,model,ap20,delta_ap20_vs_current,delta_ap20_vs_quarters_control,buyers_top5000,fp_top5000,fp_4_15_top5000,fp_4_15_removed,fp_4_15_added,fp_4_15_net_removed,status
-2,lightgbm_plain_half,0.7785233428848994,0,0.0015133429,4170,830,,,,,archived_tail_models_csv_segment_4_15_unavailable
-2,base_plus_anti_fp,,,,,,,,,,blocked_missing_train_csv_orders_parquet_products_parquet
-3,lightgbm_plain_half,0.785118034003418,0,0.000778034,4182,818,,,,,archived_tail_models_csv_segment_4_15_unavailable
-3,base_plus_anti_fp,,,,,,,,,,blocked_missing_train_csv_orders_parquet_products_parquet
+2,lightgbm_plain_half,0.7785233428848994,0.0,0.0015133428848994601,4170,830,529,0,0,0,measured
+2,base_plus_anti_fp,0.7734145052335314,-0.005108837651368048,-0.0035954947664685877,4152,848,539,19,29,-10,measured
+3,lightgbm_plain_half,0.785118034003418,0.0,0.0007780340034179156,4182,818,511,0,0,0,measured
+3,base_plus_anti_fp,0.7829565589380129,-0.002161475065405094,-0.0013834410619871784,4172,828,518,13,20,-7,measured
