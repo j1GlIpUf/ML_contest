@@ -86,3 +86,25 @@ def head_meta(a,b,y,train_pool,query_pool,prior):
     model=LogisticRegression(C=.1,max_iter=500).fit(scaler.transform(a.loc[train_pool]),y.loc[train_pool])
     raw=pd.Series(model.predict_proba(scaler.transform(b.loc[query_pool]))[:,1],index=query_pool)
     return splice(prior,raw,query_pool)
+
+
+def local_oracles(y, scores):
+    """Perfectly reorder labels within specified blocks, preserving every other position."""
+    k=int(np.ceil(.2*len(y)))
+    ranked=y.loc[scores.sort_values(ascending=False,kind='stable').index[:k]].to_numpy()
+    ranks=np.arange(1,k+1)
+    denominator=min(k,int(y.sum()))
+    def ap(values):
+        return ((values.cumsum()/ranks)@values)/denominator
+    original=ap(ranked)
+    bins=[(1,500),(501,1000),(1001,2000),(2001,3500),(3501,k)]
+    cases=[(f'{lo}-{hi}',[(lo,hi)]) for lo,hi in bins]
+    cases.extend([('five_blocks',bins),('1-1500',[(1,1500)]),('1501-5000',[(1501,k)]),('all',[(1,k)])])
+    rows=[]
+    for name,blocks in cases:
+        perfect=ranked.copy()
+        for lo,hi in blocks:
+            perfect[lo-1:hi]=np.sort(perfect[lo-1:hi])[::-1]
+        ceiling=ap(perfect)
+        rows.append(dict(block=name,oracle_ap=ceiling,gain=ceiling-original))
+    return pd.DataFrame(rows)
