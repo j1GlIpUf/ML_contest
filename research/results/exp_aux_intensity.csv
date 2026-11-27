@@ -1,0 +1,9 @@
+stage,status,date,model,ap20,buyers_top5000,delta_vs_quarters
+validation,published,2022-02-01,quarters,0.7770107184302391,4166.0,0.0
+validation,published,2022-03-01,quarters,0.784343381448521,4172.0,0.0
+validation,published,2022-02-01,lightgbm_plain_half,0.7785233428848994,4170.0,0.0015126244546603829
+validation,published,2022-03-01,lightgbm_plain_half,0.785118034003418,4182.0,0.0007746525548969485
+validation,missing_raw_data,2022-02-01,with_aux,,,
+diagnosis,missing_raw_data_and_original_recipe,2022-02-01,original_historical_windows,0.37819,,
+validation,missing_raw_data,2022-03-01,with_aux,,,
+diagnosis,missing_raw_data_and_original_recipe,2022-03-01,original_historical_windows,0.39505,,
