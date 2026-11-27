@@ -9,6 +9,7 @@ def review(cache,choice):
     c=pd.read_parquet(cache/'cohorts.parquet')
     seg=pd.read_parquet(cache/'segments.parquet')
     warning_audit(cache)
+    paired_warning_test(cache)
     results=[]
     uncertainty=[]
     for month in [2,3]:
@@ -62,3 +63,31 @@ def warning_audit(cache):
                 output.append(dict(month=month,top=limit,feature=name,low_n=len(low),high_n=len(high),
                     excess_false_low=residual.loc[low].mean(),excess_false_high=residual.loc[high].mean()))
     pd.DataFrame(output).to_csv('research/results/tail_warning_audit.csv',index=False)
+
+
+def paired_warning_test(cache):
+    """Add the warning block to identical predictors with deterministic full-column trees."""
+    from research.tail_analysis import splice
+    from research.tail_models import booster
+    c=pd.read_parquet(cache/'cohorts.parquet')
+    features=pd.concat([pd.read_parquet(cache/f'features_{m}.parquet') for m in [1,2,3]])
+    january=pd.concat([pd.read_parquet(cache/f'january_fold_{i}.parquet').quarters for i in range(5)])
+    scores=pd.concat([january,*[pd.read_parquet(cache/f'scores_{m}.parquet').quarters for m in [2,3]]])
+    rank=scores.groupby(c.scoring_date.reindex(scores.index)).rank(pct=True,method='first')
+    features['rank_pct']=rank
+    warning=list(features.filter(regex='^warning_'))
+    rows=[]
+    for m in [2,3]:
+        a=c.index[(c.scoring_date.dt.month<m)&rank.reindex(c.index).gt(.6)]
+        b=c.index[c.scoring_date.dt.month.eq(m)]
+        pool=b[rank.loc[b].gt(.6)]
+        chosen=pd.read_csv(f'research/results/tail_selected_{m}.csv').feature
+        base=[col for col in chosen if col not in warning]+['rank_pct']
+        prior=scores.loc[b]
+        for name,cols in [('fixed_core',base),('fixed_core_plus_warnings',base+warning)]:
+            model=booster('lightgbm').set_params(colsample_bytree=1.)
+            model.fit(features.loc[a,cols],c.target.loc[a].astype(int))
+            p=pd.Series(model.predict_proba(features.loc[pool,cols])[:,1],index=pool)
+            candidate=splice(prior,p,pool)
+            rows.append(dict(month=m,model=name,**compare(c.target.loc[b].astype(int),candidate,prior,features.n_orders)))
+        pd.DataFrame(rows).to_csv('research/results/tail_warning_ablation.csv',index=False)

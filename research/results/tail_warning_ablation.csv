@@ -1,0 +1,5 @@
+month,model,ap20,buyers,changed,added_buyers,dropped_buyers,false_7_15
+2,fixed_core,0.7712120462763671,4142,360,226,250,359
+2,fixed_core_plus_warnings,0.7709333841176101,4141,360,221,246,371
+3,fixed_core,0.7822713368615989,4165,261,156,163,336
+3,fixed_core_plus_warnings,0.7841478481710323,4173,257,160,159,331
