@@ -1,0 +1,11 @@
+month,model,status,ap20,delta_vs_quarters,delta_vs_current,buyers_top5000,false_top5000_4_6,false_top5000_7_15,false_top5000_4_15,missed_buyers_4_15,added_buyers_4_15,dropped_buyers_4_15,source
+2,quarters,archived,0.77701071843,0,-0.00151262445466,4166,191,338,529,1908,,,validation_quarters.csv; tail_segments.csv; round5_top_errors.csv
+2,current_base,archived,0.778523342885,0.00151262445466,0,4170,,336,,,0,0,tail_models.csv
+2,base_plus_phase,blocked_missing_competition_data,,,,,,,,,,,train.csv; orders.parquet; products.parquet
+2,base_plus_trajectory,blocked_missing_competition_data,,,,,,,,,,,train.csv; orders.parquet; products.parquet
+2,base_plus_multistream,blocked_missing_competition_data,,,,,,,,,,,train.csv; orders.parquet; products.parquet
+3,quarters,archived,0.784343381449,0,-0.000774652554897,4172,192,317,509,1765,,,validation_quarters.csv; tail_segments.csv; round5_top_errors.csv
+3,current_base,archived,0.785118034003,0.000774652554897,0,4182,,322,,,0,0,tail_models.csv
+3,base_plus_phase,blocked_missing_competition_data,,,,,,,,,,,train.csv; orders.parquet; products.parquet
+3,base_plus_trajectory,blocked_missing_competition_data,,,,,,,,,,,train.csv; orders.parquet; products.parquet
+3,base_plus_multistream,blocked_missing_competition_data,,,,,,,,,,,train.csv; orders.parquet; products.parquet
