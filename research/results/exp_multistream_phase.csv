@@ -1,11 +1,11 @@
 month,model,status,ap20,delta_vs_quarters,delta_vs_current,buyers_top5000,false_top5000_4_6,false_top5000_7_15,false_top5000_4_15,missed_buyers_4_15,added_buyers_4_15,dropped_buyers_4_15,source
-2,quarters,archived,0.77701071843,0,-0.00151262445466,4166,191,338,529,1908,,,validation_quarters.csv; tail_segments.csv; round5_top_errors.csv
-2,current_base,archived,0.778523342885,0.00151262445466,0,4170,,336,,,0,0,tail_models.csv
-2,base_plus_phase,blocked_missing_competition_data,,,,,,,,,,,train.csv; orders.parquet; products.parquet
-2,base_plus_trajectory,blocked_missing_competition_data,,,,,,,,,,,train.csv; orders.parquet; products.parquet
-2,base_plus_multistream,blocked_missing_competition_data,,,,,,,,,,,train.csv; orders.parquet; products.parquet
-3,quarters,archived,0.784343381449,0,-0.000774652554897,4172,192,317,509,1765,,,validation_quarters.csv; tail_segments.csv; round5_top_errors.csv
-3,current_base,archived,0.785118034003,0.000774652554897,0,4182,,322,,,0,0,tail_models.csv
-3,base_plus_phase,blocked_missing_competition_data,,,,,,,,,,,train.csv; orders.parquet; products.parquet
-3,base_plus_trajectory,blocked_missing_competition_data,,,,,,,,,,,train.csv; orders.parquet; products.parquet
-3,base_plus_multistream,blocked_missing_competition_data,,,,,,,,,,,train.csv; orders.parquet; products.parquet
+2,quarters,measured,0.7770107184302391,0.0,-0.0015126244546603829,4166,191,338,529,1908,64,67,time_split
+2,current_base,measured,0.7785233428848994,0.0015126244546603829,0.0,4170,193,336,529,1905,0,0,time_split
+2,base_plus_phase,measured,0.7733874994449249,-0.003623218985314147,-0.00513584343997453,4151,209,351,560,1885,90,70,time_split
+2,base_plus_trajectory,measured,0.7742620663858228,-0.002748652044416211,-0.004261276499076594,4158,200,343,543,1904,67,66,time_split
+2,base_plus_multistream,measured,0.773393737783293,-0.003616980646946044,-0.005129605101606427,4153,214,342,556,1890,88,73,time_split
+3,quarters,measured,0.784343381448521,0.0,-0.0007746525548969485,4172,192,317,509,1765,53,62,time_split
+3,current_base,measured,0.785118034003418,0.0007746525548969485,0.0,4182,189,322,511,1756,0,0,time_split
+3,base_plus_phase,measured,0.7840582242100835,-0.0002851572384374723,-0.0010598097933344208,4174,195,331,526,1745,50,39,time_split
+3,base_plus_trajectory,measured,0.78362217781394,-0.000721203634581058,-0.0014958561894780065,4172,202,323,525,1753,40,37,time_split
+3,base_plus_multistream,measured,0.7840577831421329,-0.0002855983063880796,-0.001060250861285028,4172,201,333,534,1743,52,39,time_split
