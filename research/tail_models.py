@@ -2,6 +2,7 @@
 import numpy as np
 import pandas as pd
 from lightgbm import LGBMClassifier
+from scipy.special import logit
 from research.tail_analysis import calibrate, head_meta, meta_features, splice
 
 
@@ -52,6 +53,24 @@ def experiment(features, segments, dates, labels, scores, fit, query):
         key=f'head{int(frac*100)}'
         predictions[key]=splice(prior,p,query_ids)
         predictions[key+'_half']=(prior+predictions[key])/2
+    # Fit a small log-odds correction on the candidate pool. Predictors see
+    # per-month percentiles for every member; the intercept curve is obtained
+    # without labels from the training OOF score distribution.
+    train_ranks=scores.loc[fit].groupby(dates.loc[fit]).rank(pct=True)
+    query_ranks=scores.loc[query].rank(pct=True)
+    relative=pd.concat([train_ranks,query_ranks]).sub(pd.concat([rank,query_rank]),axis=0)
+    extended=data.join(relative.add_prefix('rank_difference_'))
+    grid=np.arange(1,len(fit)+1)/len(fit)
+    ordered=np.sort(oof.to_numpy().clip(1e-5,1-1e-5))
+    initial=logit(np.interp(rank.loc[pool],grid,ordered))
+    intercept=logit(np.interp(query_rank.loc[qpool],grid,ordered))
+    residual=booster('lightgbm').set_params(n_estimators=160,num_leaves=8,reg_lambda=25)
+    residual.fit(extended.loc[pool],y.loc[pool],init_score=initial)
+    offset=residual.booster_.predict(extended.loc[qpool],raw_score=True,num_threads=3)
+    raw=pd.Series(intercept+.5*offset,index=qpool)
+    predictions['offset40']=splice(prior,raw,qpool)
+    original_top=query[query_rank.gt(.8)]
+    predictions['offset_top20']=splice(prior,raw.loc[original_top],original_top)
     # Drop fresh indicators and reselect the same number of columns for the ablation.
     without=[c for c in features if not c.startswith('warning_')]
     reduced=importance_columns(features.loc[pool,without],y.loc[pool])
