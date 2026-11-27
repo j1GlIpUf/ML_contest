@@ -1,0 +1,4 @@
+{
+  "model": "lightgbm_plain_half",
+  "rule": "highest February AP among the planned candidates; require both months above quarters"
+}
