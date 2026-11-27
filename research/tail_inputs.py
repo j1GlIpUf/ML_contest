@@ -55,14 +55,22 @@ def prepare(ns,cache,rebuild_scores=False):
 def diagnostic_reports(cache):
     c=pd.read_parquet(cache/'cohorts.parquet')
     seg=pd.read_parquet(cache/'segments.parquet')
-    losses,bands,mixes,oracles=[],[],[],[]
+    losses,bands,mixes,oracles,spread=[],[],[],[],[]
     for month in [2,3]:
         s=pd.read_parquet(cache/f'scores_{month}.parquet')
         y=c.target.loc[s.index].astype(int)
+        ranked=s.quarters.sort_values(ascending=False,kind='stable').index
+        for lo,hi in [(1,1500),(1501,5000),(5001,10000)]:
+            subset=s.loc[ranked[lo-1:hi]]
+            disagreement=subset.std(axis=1,ddof=0)
+            hits=y.loc[subset.index].astype(bool)
+            spread.append(dict(month=month,first=lo,last=hi,model_sd_buyers=disagreement[hits].mean(),
+                model_sd_nonbuyers=disagreement[~hits].mean(),
+                min_pairwise_spearman=subset.corr(method='spearman').min().min()))
         oracles.append(local_oracles(y,s.quarters).assign(month=month))
         a,b=diagnostics(y,s.quarters,seg)
         losses.append(a.assign(month=month));bands.append(b.assign(month=month))
         for name,p in blends(s).assign(quarters=s.quarters).items():
             mixes.append(dict(month=month,model=name,**compare(y,p,s.quarters,seg.n_orders)))
-        for suffix,frame in [('oracles',pd.concat(oracles)),('loss',pd.concat(losses)),('segments',pd.concat(bands)),('blends',pd.DataFrame(mixes))]:
+        for suffix,frame in [('disagreement',pd.DataFrame(spread)),('oracles',pd.concat(oracles)),('loss',pd.concat(losses)),('segments',pd.concat(bands)),('blends',pd.DataFrame(mixes))]:
             frame.to_csv(f'research/results/tail_{suffix}.csv',index=False)
