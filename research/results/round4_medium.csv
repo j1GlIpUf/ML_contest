@@ -1,0 +1,3 @@
+month,model,weight,ap20,buyers,changed,added_buyers,dropped_buyers,false_7_15
+2,medium,1.0,0.7740130980797908,4156,26,16,19,330
+3,medium,1.0,0.7825898639597137,4170,44,26,25,311

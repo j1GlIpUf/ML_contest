@@ -35,3 +35,65 @@ def rerank(fit, y, query, oof, prior, dates, method):
     model.fit(fit.to_numpy(), y, init_score=base, sample_weight=weights)
     correction = model.booster_.predict(query.to_numpy(), raw_score=True, num_threads=4)
     return expit(logit(np.clip(np.asarray(prior), 1e-5, 1 - 1e-5)) + correction)
+
+
+def medium_order_correction(fit, y, oof, query, prior):
+    """Estimate a correction for 7–15 orders from earlier out-of-sample residuals."""
+    def strata(frame, score):
+        due = -frame.rhythm_order_all_median_delta
+        phase = np.select([due.lt(-14), due.lt(15), due.le(75), due.le(104)], range(4), default=4)
+        repeats = frame.motif_mode_3_support.fillna(0).clip(upper=2)
+        band = np.digitize(score, [.5, .7, .85])
+        return pd.DataFrame({'phase': phase, 'repeats':repeats, 'band':band}, index=frame.index)
+    selected = fit.n_orders.between(7, 15)
+    training = strata(fit, oof).loc[selected].copy()
+    training['error'] = (y - oof).loc[selected]
+    training['variance'] = (oof * (1 - oof)).loc[selected]
+    target = strata(query, prior)
+    adjustment = pd.Series(0., index=query.index)
+    for keys in [['phase','band'], ['phase','repeats','band']]:
+        rates = training.groupby(keys)[['error','variance']].sum()
+        delta = (rates.error / (rates.variance + 10)).clip(-.8,.8)
+        adjustment += .5 * delta.reindex(pd.MultiIndex.from_frame(target[keys])).fillna(0).to_numpy()
+    adjustment *= query.n_orders.between(7, 15)
+    return expit(logit(prior.clip(1e-5, 1-1e-5)) + adjustment)
+
+
+def boundary_pairs(fit, y, oof, dates, query, prior):
+    """Train a residual ranker on plausible customer swaps around the marketing cutoff."""
+    import lightgbm as lgb
+    rng = np.random.default_rng(73)
+    labels = y.to_numpy()
+    base = logit(np.clip(np.asarray(oof), 1e-5, 1 - 1e-5))
+    positives, negatives, masses = [], [], []
+    for date in pd.unique(dates):
+        ix = np.flatnonzero(np.asarray(dates) == date)
+        rank = ix[np.argsort(-base[ix], kind='stable')]
+        k = int(np.ceil(.2 * len(ix)))
+        cutoff_neg = rank[:2*k][labels[rank[:2*k]] == 0]
+        for i, row in enumerate(rank[:3*k]):
+            if not labels[row]:
+                continue
+            local = rank[max(0,i-k//3):min(3*k,i+k//3)]
+            local_neg = local[labels[local] == 0]
+            pool = np.r_[rng.choice(cutoff_neg, 8),rng.choice(local_neg, 8) if len(local_neg) else []].astype(int)
+            positives.extend([row]*len(pool))
+            negatives.extend(pool)
+            masses.extend([1 / np.sqrt(.2 + i/k)] * len(pool))
+    pos,neg = np.array(positives),np.array(negatives)
+    w = np.asarray(masses)
+    w *= len(fit) / w.sum()
+    def objective(raw, dataset):
+        s = raw + base
+        chance = expit(s[neg] - s[pos])
+        grad = np.bincount(neg,w*chance,minlength=len(fit))-np.bincount(pos,w*chance,minlength=len(fit))
+        curv = w*chance*(1-chance)
+        hess = np.bincount(neg,curv,minlength=len(fit))+np.bincount(pos,curv,minlength=len(fit))
+        point = expit(s)
+        return grad + .5*(point-labels), hess + .5*point*(1-point)
+    model = lgb.train(dict(objective=objective, learning_rate=.035,num_leaves=8,
+                    min_data_in_leaf=125,lambda_l2=20,feature_fraction=.65,
+                    num_threads=4,verbosity=-1,seed=73), lgb.Dataset(fit.to_numpy(),label=labels),
+                    num_boost_round=170)
+    delta = model.predict(query.to_numpy(),num_threads=4)
+    return expit(logit(np.clip(np.asarray(prior),1e-5,1-1e-5))+delta)
