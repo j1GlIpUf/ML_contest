@@ -1,0 +1,15 @@
+month,model,ap20,buyers_top5000,features_selected,feature_candidates,status
+2,control,0.7770107184302391,4166,,,published_control
+2,lightgbm_035,,,,,missing_competition_data
+2,lightgbm_050,,,,,missing_competition_data
+2,catboost,,,,,missing_competition_data
+2,xgboost,,,,,missing_competition_data
+2,gbdt_mean,,,,,missing_competition_data
+2,gbdt_control_half,,,,,missing_competition_data
+3,control,0.784343381448521,4172,,,published_control
+3,lightgbm_035,,,,,missing_competition_data
+3,lightgbm_050,,,,,missing_competition_data
+3,catboost,,,,,missing_competition_data
+3,xgboost,,,,,missing_competition_data
+3,gbdt_mean,,,,,missing_competition_data
+3,gbdt_control_half,,,,,missing_competition_data
