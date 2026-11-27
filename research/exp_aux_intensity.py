@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RESULT = ROOT / 'research/results/exp_aux_intensity.csv'
 OFFSETS = (120, 210, 300, 365)
 TARGETS = ('target_n_orders_90d', 'days_to_first_order', 'target_30d')
+DATA_FILES = ('train.csv', 'test.csv', 'orders.parquet')
 BLIND = pd.Timedelta(days=14)
 HORIZON = pd.Timedelta(days=90)
 BUFFER = pd.Timedelta(days=30)
@@ -26,7 +27,6 @@ PARAMS = dict(n_estimators=180, learning_rate=.05, num_leaves=15,
 
 
 def read_data(path):
-    required = ('train.csv', 'test.csv', 'orders.parquet')
     if not path.exists():
         raise FileNotFoundError(f'No Lamoda data at {path}. Set --data or LAMODA_DATA.')
 
@@ -37,18 +37,21 @@ def read_data(path):
             return reader(source, **kwargs)
 
     train, test = [read(name, pd.read_csv, parse_dates=['scoring_date']).set_index('customer_id')
-                   for name in required[:2]]
+                   for name in DATA_FILES[:2]]
     cohorts = pd.concat([train, test], verify_integrity=True)
     if (not train.target.isin([0, 1]).all() or cohorts.scoring_date.isna().any()
             or train.scoring_date.nunique() != 3 or test.scoring_date.nunique() != 1
             or train.scoring_date.max() >= test.scoring_date.min()):
         raise ValueError('Expected three chronological labelled cohorts and one subsequent test cohort.')
-    orders = read(required[2], pd.read_parquet,
+    orders = read(DATA_FILES[2], pd.read_parquet,
                   columns=['customer_id', 'order_id', 'order_date', 'paid_price'])
     orders['order_date'] = pd.to_datetime(orders.order_date)
     order_keys = ['customer_id', 'order_id']
     receipts = orders[orders.customer_id.isin(cohorts.index)].groupby(order_keys, as_index=False).agg(
-        order_date=('order_date', 'min'), paid=('paid_price', 'sum'), items=('order_id', 'size'))
+        order_date=('order_date', 'min'), latest=('order_date', 'max'),
+        paid=('paid_price', 'sum'), items=('order_id', 'size'))
+    if not receipts.order_date.eq(receipts.pop('latest')).all():
+        raise ValueError('Each order must have a single date before its lines can be combined.')
     receipts = receipts.merge(cohorts[['scoring_date']], on='customer_id', validate='many_to_one')
     receipts = receipts[receipts.order_date.le(receipts.scoring_date - BLIND)]
     return cohorts, receipts.sort_values(['customer_id', 'order_date', 'order_id'], kind='stable')
@@ -160,7 +163,7 @@ def main_predictions(features, aux, labels, scores, dates, fit, query):
     selected = list(gains.sort_values(ascending=False, kind='stable').head(160).index)
     prior = scores.quarters.loc[query]
     for name, data in [('matched_control', features[selected]), ('with_aux', features[selected].join(aux))]:
-        model = booster('lightgbm').set_params(n_jobs=4, colsample_bytree=1.)
+        model = booster('lightgbm').set_params(n_jobs=4)
         model.fit(data.loc[fit], labels.loc[fit])
         score = pd.Series(model.predict_proba(data.loc[query])[:, 1], index=query)
         yield name, (score + prior) / 2
@@ -184,20 +187,6 @@ def write_report(rows, path):
             temporary.unlink(missing_ok=True)
 
 
-def references():
-    controls = pd.read_csv(ROOT / 'validation_quarters.csv', parse_dates=['date'])
-    rows = []
-    for row in controls[controls.model.eq('quarters')].itertuples(index=False):
-        rows.append(dict(stage='validation', status='published', date=row.date.date(), model='quarters',
-                         ap20=row.ap20, buyers_top5000=row.buyers, delta_vs_quarters=0.))
-    tail = pd.read_csv(ROOT / 'research/results/tail_models.csv')
-    for row in tail[tail.model.eq('lightgbm_plain_half')].itertuples(index=False):
-        base = next(item for item in rows if item['date'].month == row.month and item['model'] == 'quarters')
-        rows.append(dict(stage='validation', status='published', date=base['date'], model=row.model,
-                         ap20=row.ap20, buyers_top5000=row.buyers, delta_vs_quarters=row.ap20 - base['ap20']))
-    return rows
-
-
 def run(args):
     cohorts, receipts = read_data(args.data)
     dates, labels = cohorts.scoring_date, cohorts.target
@@ -210,6 +199,7 @@ def run(args):
     for date, ids in by_date.items():
         report.append(dict(stage='cohort', status='measured', date=date.date(),
                            split='train' if labels.loc[ids].notna().all() else 'test',
+                           actual_purchase_rate=labels.loc[ids].mean(),
                            recency_cap=recency_cap(core.loc[ids], dates.loc[ids]),
                            **distributions(core.loc[ids])))
     write_report(report, args.report)
@@ -247,6 +237,8 @@ def run(args):
                 report.append(dict(stage='history', status='measured', date=date.date(),
                                    source_date=source.date(), offset_days=offset, recency_cap=cap,
                                    historical_cutoff=(source - pd.Timedelta(days=offset)).date(),
+                                   no_prior_orders=int(window.recency.isna().sum()),
+                                   over_recency_cap=int(window.recency.notna().sum()) - len(kept),
                                    all_customers=len(window), historical_purchase_90d=kept[TARGETS[0]].gt(0).mean(),
                                    before_activity_filter_purchase_90d=window.loc[window.recency.notna(), TARGETS[0]].gt(0).mean(),
                                    historical_purchase_30d=kept[TARGETS[2]].mean(), **distributions(kept)))
@@ -269,12 +261,13 @@ def run(args):
             control_ap = compare(y, control, control, order_count)['ap20']
             for name, score in dict(quarters=prior, **candidates).items():
                 metrics = compare(y, score, control, order_count)
+                fixed_ap = fixed_top_ap(y, score, control)
                 report.append(dict(stage='validation', status='measured', date=date.date(), model=name,
                                    feature_source=feature_source, ap20=metrics['ap20'],
                                    buyers_top5000=metrics['buyers'], changed_top5000=metrics['changed'],
                                    delta_vs_quarters=metrics['ap20'] - quarters_ap,
                                    delta_vs_matched_control=metrics['ap20'] - control_ap,
-                                   fixed_top5000_ap20=fixed_top_ap(y, score, control),
+                                   fixed_top5000_ap20=fixed_ap, fixed_top5000_delta=fixed_ap - control_ap,
                                    added_buyers=metrics['added_buyers'], dropped_buyers=metrics['dropped_buyers']))
             row = report[-1]
             print(f'{date.date()} AP@20% {row["ap20"]:.5f}, Δ {row["delta_vs_matched_control"]:+.5f}, '
@@ -283,31 +276,17 @@ def run(args):
 
 
 def main():
-    default_data = ROOT / 'data'
-    archive = ROOT / 'lamoda-hse-repeat-purchase-2026.zip'
-    if not default_data.is_dir() and archive.is_file():
-        default_data = archive
+    data_paths = (ROOT / 'data', ROOT, ROOT / 'lamoda-hse-repeat-purchase-2026.zip')
+    default_data = next((path for path in data_paths if path.is_file()
+                         or all((path / name).is_file() for name in DATA_FILES)), data_paths[0])
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data', type=Path, default=Path(os.getenv('LAMODA_DATA', str(default_data))))
     parser.add_argument('--scores', type=Path, default=ROOT / 'research/oof')
     parser.add_argument('--cache', type=Path, default=ROOT / '.checkpoints/tail6')
     parser.add_argument('--report', type=Path, default=RESULT)
     parser.add_argument('--predictions', type=Path, help='Optional output Parquet for unlabelled customers.')
-    mode = parser.add_mutually_exclusive_group()
-    mode.add_argument('--diagnose-only', action='store_true')
-    mode.add_argument('--reference-only', action='store_true', help='Record known controls if raw data are unavailable.')
-    args = parser.parse_args()
-    if args.reference_only:
-        rows = references()
-        historical_ap = {2: .37819, 3: .39505}
-        for row in [row for row in rows if row['model'] == 'quarters']:
-            rows.append(dict(stage='validation', status='missing_raw_data', date=row['date'], model='with_aux'))
-            rows.append(dict(stage='diagnosis', status='missing_raw_data_and_original_recipe',
-                             date=row['date'], model='original_historical_windows',
-                             ap20=historical_ap[row['date'].month]))
-        write_report(rows, args.report)
-    else:
-        run(args)
+    parser.add_argument('--diagnose-only', action='store_true')
+    run(parser.parse_args())
 
 
 if __name__ == '__main__':
