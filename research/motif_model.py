@@ -44,3 +44,34 @@ def motif_experts(fit, labels, query, shared):
             model.fit(fit[cols], labels, sample_weight=np.where(local, 1., .18))
             pred[query_mask] = model.predict_proba(query.loc[query_mask, cols])[:, 1]
     return pred
+
+
+def frequency_clocks(core, motifs):
+    """Translate category-sequence frequencies into alternative expected purchase dates."""
+    typical = core.recency - core.rhythm_order_all_median_delta
+    out = {}
+    for length in (1, 2, 3, 4):
+        pre = f'motif_mode_{length}_'
+        count = motifs[pre + 'n']
+        visits = (core.n_orders - length + 1).clip(lower=1)
+        baseline = typical
+        # Typical time for a repeat if successive opportunities follow the
+        # personal order rhythm. Use both the raw and smoothed support estimates.
+        rates = {'all': count / visits,
+                 'regularised': (count + 1) / (visits + 1),
+                 'suffix_step': 1 / motifs[pre + 'order_period'],
+                 'prefix': motifs[pre + 'past_likelihood'],
+                 'successor': motifs[pre + 'confidence']}
+        for name, rate in rates.items():
+            elapsed = baseline / rate.where(rate.gt(0))
+            due = elapsed - core.recency
+            key = f'frequency_{length}_{name}'
+            out[key + '_due'] = due
+            out[key + '_central'] = (due - 45).abs()
+            out[key + '_next_pair'] = elapsed - motifs[pre + 'bigram_age']
+        for unit in ['unigram', 'bigram']:
+            prior_count = motifs[pre + unit + '_n']
+            age = motifs[pre + unit + '_age']
+            due = baseline * (core.n_orders - (unit == 'bigram')) / prior_count - age
+            out[pre + unit + '_frequency_center'] = (due - 45).abs()
+    return pd.DataFrame(out, index=core.index).replace([np.inf, -np.inf], np.nan).astype('float32')

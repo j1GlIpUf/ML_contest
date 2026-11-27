@@ -141,3 +141,27 @@ def habitual_sequences(receipts, depth=4):
             stats[f'last{count}_best_specific'] = gg.specific_center.min()
         parts.append(stats.add_prefix(f'habit_{size}_'))
     return pd.concat(parts, axis=1)
+
+
+def alternate_histories(orders, customers):
+    from research.sequence_rules import baskets
+    b = baskets(orders, customers).sort_values(['customer_id', 'age', 'order_id'], ascending=[True, False, True])
+    grouped = b.groupby('customer_id', sort=False)
+    b['switch'] = b['mode'].ne(grouped['mode'].shift())
+    b['run'] = b.switch.groupby(b.customer_id).cumsum()
+    b['session'] = ((-grouped.age.diff()).gt(7) | grouped.age.diff().isna()).groupby(b.customer_id).cumsum()
+    b['department'] = b.gender_product + '|' + b['mode']
+    fields = ['support', 'share', 'past_likelihood', 'pooled_step_due', 'cycle_due', 'bigram_global_due',
+              'unigram_global_due', 'branches', 'confidence', 'same']
+    parts = []
+    for name, events, key in [
+        ('run_first', b.drop_duplicates(['customer_id', 'run'], keep='first'), 'mode'),
+        ('run_last', b.drop_duplicates(['customer_id', 'run'], keep='last'), 'mode'),
+        ('session_last', b.drop_duplicates(['customer_id', 'session'], keep='last'), 'mode'),
+        ('day_last', b.drop_duplicates(['customer_id', 'age'], keep='last'), 'mode'),
+        ('gender', b, 'gender_product'), ('subcat', b, 'category2'), ('department', b, 'department')
+    ]:
+        stats = motif_clocks(events, category=key, depth=3)
+        cols = [f'motif_{key}_{k}_{c}' for k in range(1, 4) for c in fields]
+        parts.append(stats[cols].add_prefix(name + '_'))
+    return pd.concat(parts, axis=1).reindex(customers.customer_id).astype('float32')
