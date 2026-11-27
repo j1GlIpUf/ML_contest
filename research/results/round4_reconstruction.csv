@@ -1,0 +1,5 @@
+month,model,weight,ap20,buyers,changed,added_buyers,dropped_buyers,false_7_15
+2,reconstruction,0.5,0.7748472046738508,4160,169,114,113,334
+2,reconstruction,1.0,0.769270727637717,4141,317,197,215,343
+3,reconstruction,0.5,0.7811763297697271,4161,139,79,87,329
+3,reconstruction,1.0,0.7793942833432957,4159,277,170,180,327
