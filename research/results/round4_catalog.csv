@@ -1,0 +1,5 @@
+month,model,weight,ap20,buyers,changed,added_buyers,dropped_buyers,false_7_15
+2,catalog_neighbors,0.5,0.7744707685752705,4157,13,8,10,335
+2,catalog_neighbors,1.0,0.774740441314993,4159,25,18,18,336
+3,catalog_neighbors,0.5,0.7823458841586711,4168,15,7,8,323
+3,catalog_neighbors,1.0,0.7817871222021819,4165,32,16,20,323
